@@ -50,9 +50,13 @@ The images that "Scene-Flow-Impair" reads can be specified on the command line
 
 --i2 <filename> : The file name of the second intensity image. Defaults to i2.png
 
+--idir <dirname>: The directory containing RGB images. Defaults to NULL (not used)
+
 --z1 <filename> : The file name of the first depth image. Defaults to z1.png
 
 --z2 <filename> : The file name of the second depth image. Defaults to z2.png
+
+--zdir <dirname>: The directory containing depth images. Defaults to NULL (not used)
 
 Note these names are case sensitive and the files must be located in the same directory as the executable unless an absolute path is specified. Furthermore, they must be saved with the following format:
 
