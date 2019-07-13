@@ -7,7 +7,7 @@ endif(COMMAND cmake_policy)
 
 FIND_PACKAGE(CUDA REQUIRED)
 INCLUDE_DIRECTORIES(${CUDA_INCLUDE_DIRS})
-set(CUDA_NVCC_FLAGS "-arch=sm_20")
+set(CUDA_NVCC_FLAGS "-arch=sm_30")
 
 #Build scene flow CUDA lib
 CUDA_ADD_LIBRARY(pdflow_cudalib pdflow_cudalib.h pdflow_cudalib.cu)
@@ -28,7 +28,8 @@ IF (BUILD_EVALUATOR)
 	TARGET_LINK_LIBRARIES(Scene-Flow-Impair 
 			${OpenCV_LIBS}
 			${CUDA_LIBRARIES}
-			pdflow_cudalib)		
+			pdflow_cudalib
+			stdc++fs)		
 ENDIF (BUILD_EVALUATOR)
 
 SET(DEFAULT_BUILD_RT_VISUALIZATION ON)
@@ -45,8 +46,8 @@ IF (BUILD_RT_VISUALIZATION)
 	ENDIF (WIN32)
 	
 	IF (UNIX)
-		SET(OpenNI2_libdir "/usr/lib")
-		INCLUDE_DIRECTORIES("/usr/include/openni2")
+		SET(OpenNI2_libdir "/usr/local/lib")
+		INCLUDE_DIRECTORIES("/usr/local/include/OpenNI2")
 		LINK_DIRECTORIES(${OpenNI2_libdir})
 		SET(OpenNI_lib "${OpenNI2_libdir}/libOpenNI2.so")
 	ENDIF (UNIX)
@@ -64,9 +65,9 @@ IF (BUILD_RT_VISUALIZATION)
 			pdflow_cudalib)
 ENDIF (BUILD_RT_VISUALIZATION)			
 
-			
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 # Set optimized building:
 IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_BUILD_TYPE MATCHES "Debug")
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mtune=native")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mtune=native -std=c++17")
 ENDIF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_BUILD_TYPE MATCHES "Debug")
 

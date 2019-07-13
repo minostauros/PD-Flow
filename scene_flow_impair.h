@@ -46,6 +46,14 @@
 
 #endif
 
+#define BOOST_FILESYSTEM_VERSION 3
+#define BOOST_FILESYSTEM_NO_DEPRECATED 
+#include <experimental/filesystem>
+#include <vector>
+    #include <iostream>
+
+namespace fs = std::experimental::filesystem;
+
 //==================================================================
 //					PD-Flow class (using openCV)
 //==================================================================
@@ -89,14 +97,20 @@ public:
     CSF_cuda csf_host, *csf_device;
 
     // Filenames
-    const char *intensity_filename_1;
-    const char *intensity_filename_2;
-    const char *depth_filename_1;
-    const char *depth_filename_2;
-    const char *output_filename_root;
+    std::string intensity_filename_1;
+    std::string intensity_filename_2;
+    std::string depth_filename_1;
+    std::string depth_filename_2;
+    const char* output_filename_root;
 
 	//Methods
 	bool loadRGBDFrames();
+    void setInitialImagesPath(std::string if1="i1.png", 
+                            std::string if2="i2.png",
+                            std::string df1="z1.png",
+                            std::string df2="z2.png");
+    bool setNextImages(std::string next_intensity_filename,
+                       std::string next_depth_filename);
     void createImagePyramidGPU();
     void solveSceneFlowGPU();
     void freeGPUMemory();
@@ -107,10 +121,6 @@ public:
 	void showAndSaveResults();
 
     PD_flow_opencv( unsigned int rows_config, 
-                    const char *intensity_filename_1="i1.png", 
-                    const char *intensity_filename_2="i2.png", 
-                    const char *depth_filename_1="z1.png", 
-                    const char *depth_filename_2="z2.png", 
                     const char* output_filename_root="pdflow");
 };
 

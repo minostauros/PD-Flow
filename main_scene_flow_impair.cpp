@@ -34,13 +34,30 @@ using namespace std;
 struct Launch_args {
     unsigned int    rows;
     unsigned int    show_help;
-    const char      *intensity_filename_1;
-    const char      *intensity_filename_2;
-    const char      *depth_filename_1;
-    const char      *depth_filename_2;
+    string          intensity_filename_1;
+    string          intensity_filename_2;
+    const char      *intensity_dir;
+    string          depth_filename_1;
+    string          depth_filename_2;
+    const char      *depth_dir;
     const char      *output_filename_root;
     bool            no_show;
 };
+
+// return the filenames of all files that have the specified extension
+// in the specified directory
+void get_all(const fs::path& root, const string& ext, vector<fs::path>& ret) {
+    if(!fs::exists(root) || !fs::is_directory(root)) return;
+
+    fs::directory_iterator it(root);
+    fs::directory_iterator endit;
+
+    while(it != endit)
+    {
+        if(fs::is_regular_file(*it) && it->path().extension() == ext) ret.push_back(it->path());
+        ++it;
+    }
+}
 
 /**
  * Parse arguments from the command line. Valid arguments are:
@@ -61,8 +78,10 @@ bool parse_arguments( int num_arg, char *argv[], Launch_args& args) {
 	args.rows = 240;
 	args.intensity_filename_1 = "i1.png";
 	args.intensity_filename_2 = "i2.png";
+	args.intensity_dir = NULL;
 	args.depth_filename_1 = "z1.png";
 	args.depth_filename_2 = "z2.png";
+	args.depth_dir = NULL;
 	args.output_filename_root = "pdflow";
 	args.no_show = false;
 
@@ -97,6 +116,12 @@ bool parse_arguments( int num_arg, char *argv[], Launch_args& args) {
 			} else {
 				parsed_ok = false;
 			}
+		} else if ( strcmp( "--idir", argv[arg_idx]) == 0 ) {
+			if( ++arg_idx < num_arg ) {
+				args.intensity_dir = argv[arg_idx];
+			} else {
+				parsed_ok = false;
+			}
 		} else if ( strcmp( "--z1", argv[arg_idx]) == 0 ) {
 			if( ++arg_idx < num_arg ) {
 				args.depth_filename_1 = argv[arg_idx];
@@ -106,6 +131,12 @@ bool parse_arguments( int num_arg, char *argv[], Launch_args& args) {
 		} else if ( strcmp( "--z2", argv[arg_idx]) == 0 ) {
 			if( ++arg_idx < num_arg ) {
 				args.depth_filename_2 = argv[arg_idx];
+			} else {
+				parsed_ok = false;
+			}
+		} else if ( strcmp( "--zdir", argv[arg_idx]) == 0 ) {
+			if( ++arg_idx < num_arg ) {
+				args.depth_dir = argv[arg_idx];
 			} else {
 				parsed_ok = false;
 			}
@@ -146,8 +177,10 @@ int main(int num_arg, char *argv[])
 		printf("\t   Options: r=15, r=30, r=60, r=120, r=240, r=480 (if VGA)\n");
  		printf(" --i1 <filename> : The first RGB image file name. Defaults to i1.png\n" );
  		printf(" --i2 <filename> : The second RGB image file name. Defaults to i2.png\n" );
+ 		printf(" --idir <dirname>: The directory containing RGB images. Defaults to NULL (not used)\n" );
  		printf(" --z1 <filename> : The first depth image file name. Defaults to z1.png\n" );
  		printf(" --z2 <filename> : The second depth image file name. Defaults to z2.png\n" );
+ 		printf(" --zdir <dirname>: The directory containing depth images. Defaults to NULL (not used)\n" );
  		printf(" --out <filename>: The output file name root. Omit file extension. Defaults to pdflow\n" );
  		printf(" --no-show       : Don't show the output results. Useful for batch processing\n");
         getwchar();
@@ -159,37 +192,67 @@ int main(int num_arg, char *argv[])
 	//==============================================================================
 
 	PD_flow_opencv sceneflow(args.rows, 
-							args.intensity_filename_1, 
+							args.output_filename_root);
+
+	vector<fs::path> intensities;
+	vector<fs::path> depths;
+	int iters = 1;
+	int batch_ind;
+	if (args.intensity_dir != NULL && args.depth_dir != NULL) {
+		get_all(args.intensity_dir, ".png", intensities);
+		sort(intensities.begin(), intensities.end());
+		get_all(args.depth_dir, ".png", depths);
+		sort(depths.begin(), depths.end());
+		sceneflow.setInitialImagesPath(intensities[0].string(), intensities[1].string(), 
+								       depths[0].string(), depths[1].string());
+		iters = intensities.size() - 1;
+		batch_ind = 2;
+	}
+	else {
+		sceneflow.setInitialImagesPath(args.intensity_filename_1, 
 							args.intensity_filename_2, 
 							args.depth_filename_1, 
-							args.depth_filename_2, 
-							args.output_filename_root);
+							args.depth_filename_2);
+	}
 
 	//Initialize CUDA and set some internal variables 
     sceneflow.initializeCUDA();
+    bool imloaded = sceneflow.loadRGBDFrames();
 
-	bool imloaded = sceneflow.loadRGBDFrames();
+    while (true) {
+		if (imloaded == 1) {
+			sceneflow.solveSceneFlowGPU();
 
-	if (imloaded == 1)
-	{
-		sceneflow.solveSceneFlowGPU();
+			if( args.no_show )
+			{
+				cv::Mat image = sceneflow.createImage( );
+				sceneflow.saveResults( image );
+			}
+			else
+			{
+				sceneflow.showImages();
+				sceneflow.showAndSaveResults();
+				printf("\nPush any key over the scene flow image to finish\n");
+				cv::waitKey(0);
+			}
 
-		if( args.no_show )
-		{
-			cv::Mat image = sceneflow.createImage( );
-			sceneflow.saveResults( image );
 		}
-		else
-		{
-			sceneflow.showImages();
-			sceneflow.showAndSaveResults();
-			printf("\nPush any key over the scene flow image to finish\n");
-			cv::waitKey(0);
+		else {
+			break;
 		}
 
+		iters -= 1;
+		if (iters > 0) {
+			imloaded = sceneflow.setNextImages(intensities[batch_ind].string().c_str(), depths[batch_ind].string().c_str());
+			batch_ind += 1;
+		} else {
+			break;
+		}
+    }
+
+	if (imloaded) {
 		sceneflow.freeGPUMemory();
 	}
-
 	return 0;
 }
 
